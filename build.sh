@@ -16,7 +16,7 @@ echo "        Output → backend/src/main/resources/static/"
 echo ""
 
 cd frontend
-npm install --silent
+npm ci
 npm run build
 cd ..
 
