@@ -2,7 +2,14 @@
 
 Real-time interbank payment processing demo — same Spring Boot + RabbitMQ + Redis + PostgreSQL + React architecture, deployed as a **single `cf push`** on Tanzu Application Service (TAS) or any Cloud Foundry foundation.
 
-> **Local (Docker) version:** [github.com/zahooruk2022/payflow-demo](https://github.com/zahooruk2022/payflow-demo)
+## PayFlow demo suite
+
+| Repo | Stack | Purpose |
+|---|---|---|
+| [payflow-demo](https://github.com/zahooruk2022/payflow-demo) | Spring Boot · Docker Compose | Local dev — PostgreSQL, RabbitMQ, Redis, Prometheus, Grafana |
+| **payflow-demo-cf** ← you are here | Spring Boot · CF managed services | Tanzu/TAS — single `cf push`, VCAP_SERVICES auto-wiring |
+| [payflow-ai](https://github.com/zahooruk2022/payflow-ai) | Spring AI · Tanzu GenAI | AI payment analyst — tool-calling chat + semantic transaction search |
+
 > **Interactive architecture diagram:** open `architecture.html` in a browser.
 
 ---
