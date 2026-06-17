@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>PayFlow CF — Architecture & Deployment Flow</title>
+<style>
+  :root{--bg:#0d1117;--bg2:#161b22;--bg3:#21262d;--border:#30363d;--text:#e6edf3;--muted:#8b949e;--blue:#58a6ff;--green:#3fb950;--amber:#d29922;--red:#f85149;--purple:#bc8cff;--orange:#f0883e;--teal:#39d353}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;font-size:14px;line-height:1.5;min-height:100vh}
+  header{background:var(--bg2);border-bottom:1px solid var(--border);padding:16px 32px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:100}
+  .logo{font-size:20px;font-weight:700;color:var(--blue);letter-spacing:-.5px}.logo span{color:var(--text)}
+  .cf-badge{background:#00a3e0;color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;letter-spacing:.06em}
+  nav{display:flex;gap:4px;margin-left:auto}
+  nav a{color:var(--muted);text-decoration:none;padding:6px 14px;border-radius:6px;font-size:13px;font-weight:500;transition:all .15s;border:1px solid transparent}
+  nav a:hover,nav a.active{color:var(--text);background:var(--bg3);border-color:var(--border)}
+  main{max-width:1300px;margin:0 auto;padding:40px 32px 80px}
+  h1{font-size:28px;font-weight:700;margin-bottom:8px}
+  .subtitle{color:var(--muted);margin-bottom:40px;font-size:15px}
+  section{margin-bottom:56px}
+  section>h2{font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);border-bottom:1px solid var(--border);padding-bottom:8px;margin-bottom:24px}
+
+  /* detail panel */
+  #dp{display:none;position:fixed;right:0;top:0;bottom:0;width:360px;background:var(--bg2);border-left:1px solid var(--border);z-index:200;overflow-y:auto;padding:24px;box-shadow:-8px 0 32px rgba(0,0,0,.4)}
+  #dp.open{display:block}
+  .close-btn{position:absolute;top:16px;right:16px;background:var(--bg3);border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:4px 10px;cursor:pointer;font-size:12px}
+  .close-btn:hover{color:var(--text)}
+  #dp h3{font-size:16px;font-weight:700;margin-bottom:4px;margin-top:4px}
+  .dp-tag{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;padding:2px 8px;border-radius:20px;display:inline-block;margin-bottom:16px}
+  .dp-desc{color:var(--muted);font-size:13px;line-height:1.7;margin-bottom:20px}
+  .dp-props{list-style:none}.dp-props li{padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;display:flex;gap:8px;align-items:flex-start}.dp-props li:last-child{border-bottom:none}
+  .pk{color:var(--muted);min-width:100px;flex-shrink:0}.pv{color:var(--text);font-family:ui-monospace,monospace;font-size:12px}
+
+  /* nodes */
+  .node{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:14px 16px;cursor:pointer;transition:all .2s;text-align:center;position:relative}
+  .node:hover{transform:translateY(-2px);box-shadow:0 4px 24px rgba(0,0,0,.4)}
+  .n-icon{font-size:22px;margin-bottom:6px}.n-title{font-size:13px;font-weight:600}.n-sub{font-size:11px;color:var(--muted);margin-top:2px}
+  .n-badge{position:absolute;top:-6px;right:-6px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;font-size:10px;padding:1px 6px;color:var(--muted);font-family:ui-monospace,monospace}
+  .node.browser{border-color:#58a6ff40;color:var(--blue)}
+  .node.spring{border-color:#3fb95040;color:var(--green)}
+  .node.cf-service{border-color:#f0883e40;color:var(--orange)}
+  .node.gorouter{border-color:#bc8cff40;color:var(--purple)}
+  .node.cf-platform{border-color:#d2992240;color:var(--amber)}
+
+  /* cards */
+  .card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:18px;cursor:pointer;transition:all .2s}
+  .card:hover{border-color:var(--muted);transform:translateY(-1px)}
+  .card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
+  .card-header{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  .card-icon{font-size:20px}.card-name{font-weight:600;font-size:14px}.card-file{font-size:11px;color:var(--muted);font-family:ui-monospace,monospace}
+  .card-desc{color:var(--muted);font-size:12px;line-height:1.6}
+  .card-layer{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;margin-top:10px;padding:2px 8px;border-radius:20px;display:inline-block}
+
+  /* build flow */
+  .flow-box{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:28px 32px}
+  .flow-step{display:flex;align-items:flex-start;gap:20px;cursor:pointer;padding:14px;border-radius:10px;transition:background .15s}
+  .flow-step:hover{background:var(--bg3)}
+  .step-num{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;margin-top:2px}
+  .step-body{flex:1}.step-title{font-weight:600;font-size:14px;margin-bottom:4px}.step-desc{color:var(--muted);font-size:13px;line-height:1.6}
+  .tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
+  .tag{font-size:11px;font-weight:500;padding:2px 8px;border-radius:20px;border:1px solid}
+  .connector{width:1px;height:24px;margin-left:29px;background:var(--border)}
+
+  /* vcap */
+  .vcap-grid{display:grid;grid-template-columns:1fr 60px 1fr 60px 1fr;gap:0;align-items:center;background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:28px 24px;overflow-x:auto}
+  .vcap-node{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center;cursor:pointer;transition:all .2s}
+  .vcap-node:hover{transform:translateY(-2px);box-shadow:0 4px 20px rgba(0,0,0,.4)}
+  .vcap-icon{font-size:26px;margin-bottom:8px}.vcap-title{font-weight:600;font-size:13px}.vcap-sub{font-size:11px;color:var(--muted);margin-top:4px;line-height:1.5}
+  .vcap-arrow{text-align:center;color:var(--muted);font-size:22px}
+
+  /* code block */
+  .code-block{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:16px 20px;font-family:ui-monospace,monospace;font-size:12px;color:var(--muted);overflow-x:auto;line-height:1.7}
+  .code-block .k{color:var(--blue)}.code-block .s{color:var(--green)}.code-block .c{color:#484f58;font-style:italic}
+
+  /* service commands */
+  .cmd-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:16px}
+  .cmd-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:18px}
+  .cmd-header{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+  .cmd-icon{font-size:20px}.cmd-name{font-weight:600;font-size:14px}.cmd-plan{font-size:11px;color:var(--muted);font-family:ui-monospace,monospace}
+  .cmd-block{background:var(--bg3);border-radius:6px;padding:10px 12px;font-family:ui-monospace,monospace;font-size:12px;color:var(--muted);white-space:pre;overflow-x:auto}
+  .cmd-block .cmd{color:var(--blue)}.cmd-block .arg{color:var(--green)}.cmd-block .cmt{color:#484f58;font-style:italic}
+
+  /* tags */
+  .tag-blue{background:#58a6ff18;border-color:#58a6ff40;color:var(--blue)}
+  .tag-green{background:#3fb95018;border-color:#3fb95040;color:var(--green)}
+  .tag-orange{background:#f0883e18;border-color:#f0883e40;color:var(--orange)}
+  .tag-red{background:#f8514918;border-color:#f8514940;color:var(--red)}
+  .tag-purple{background:#bc8cff18;border-color:#bc8cff40;color:var(--purple)}
+  .tag-amber{background:#d2992218;border-color:#d2992240;color:var(--amber)}
+  .text-blue{color:var(--blue)}.text-green{color:var(--green)}.text-orange{color:var(--orange)}
+  code{font-family:ui-monospace,monospace;font-size:12px;color:var(--blue)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Pay<span>Flow</span></div>
+  <div class="cf-badge">CLOUD FOUNDRY</div>
+  <div style="color:var(--muted);font-size:13px">Architecture &amp; Deployment Reference</div>
+  <nav>
+    <a href="#overview" class="active" onclick="setActive(this)">Overview</a>
+    <a href="#build" onclick="setActive(this)">Build &amp; Deploy</a>
+    <a href="#services" onclick="setActive(this)">CF Services</a>
+    <a href="#vcap" onclick="setActive(this)">VCAP Binding</a>
+    <a href="#flow" onclick="setActive(this)">Payment Flow</a>
+    <a href="#components" onclick="setActive(this)">Components</a>
+  </nav>
+</header>
+
+<div id="dp">
+  <button class="close-btn" onclick="closePanel()">✕ Close</button>
+  <div id="dp-content"></div>
+</div>
+
+<main>
+
+<h1>PayFlow — Cloud Foundry Architecture</h1>
+<p class="subtitle">Single-app CF deployment. React frontend embedded in the Spring Boot jar. Three CF managed services auto-wired via VCAP_SERVICES. Click any component for details.</p>
+
+<!-- ─── Overview ─────────────────────────────────────────────────── -->
+<section id="overview">
+  <h2>System Overview</h2>
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:32px;overflow-x:auto">
+
+    <div style="display:grid;grid-template-columns:180px 80px 200px 80px 1fr;gap:0;align-items:center;min-width:800px">
+
+      <!-- Browser -->
+      <div class="node browser" onclick="showDetail('browser')" style="grid-column:1">
+        <div class="n-icon">🌐</div>
+        <div class="n-title">Browser</div>
+        <div class="n-sub">React SPA<br/>Dark/Light mode</div>
+      </div>
+
+      <!-- Arrows browser → gorouter -->
+      <div style="display:flex;flex-direction:column;align-items:center;gap:6px;grid-column:2">
+        <div style="font-size:11px;color:var(--purple);text-align:center">HTTPS →</div>
+        <div style="font-size:11px;color:var(--blue);text-align:center">← WS</div>
+      </div>
+
+      <!-- Gorouter -->
+      <div class="node gorouter" onclick="showDetail('gorouter')" style="grid-column:3">
+        <div class="n-icon">🔀</div>
+        <div class="n-title">CF Gorouter</div>
+        <div class="n-sub">TLS termination<br/>Load balancing<br/>Route registration</div>
+      </div>
+
+      <!-- Arrows gorouter → app -->
+      <div style="display:flex;flex-direction:column;align-items:center;gap:6px;grid-column:4">
+        <div style="font-size:11px;color:var(--green);text-align:center">HTTP →</div>
+        <div style="font-size:11px;color:var(--blue);text-align:center">← WS</div>
+      </div>
+
+      <!-- Spring Boot app -->
+      <div class="node spring" onclick="showDetail('spring')" style="grid-column:5">
+        <div class="n-icon">🍃</div>
+        <div class="n-title">payflow-demo (Diego Cell)</div>
+        <div class="n-sub">Spring Boot 3.5 · java_buildpack · JDK 21 · 1 GB<br/>
+          REST API · WebSocket broker · RabbitMQ consumer<br/>
+          Fraud engine · Static files (React frontend)
+        </div>
+        <div class="n-badge">PORT (dynamic)</div>
+      </div>
+
+    </div>
+
+    <!-- VCAP row -->
+    <div style="text-align:center;margin:16px 0 8px;color:var(--muted);font-size:12px">
+      ↓ &nbsp; VCAP_SERVICES — java-cfenv-boot auto-wires at startup &nbsp; ↓
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
+      <div class="node cf-service" onclick="showDetail('svc-postgres')">
+        <div class="n-icon">🐘</div>
+        <div class="n-title">payflow-postgres</div>
+        <div class="n-sub">p.postgres · managed PostgreSQL<br/>accounts · transactions · fraud_alerts</div>
+      </div>
+      <div class="node cf-service" onclick="showDetail('svc-rabbitmq')">
+        <div class="n-icon">🐇</div>
+        <div class="n-title">payflow-rabbitmq</div>
+        <div class="n-sub">p.rabbitmq · managed RabbitMQ<br/>payment.queue · payment.dlq</div>
+      </div>
+      <div class="node cf-service" onclick="showDetail('svc-redis')">
+        <div class="n-icon">🔴</div>
+        <div class="n-title">payflow-redis</div>
+        <div class="n-sub">p.redis · managed Redis<br/>rapid:&lt;accountId&gt; TTL 60s</div>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-wrap:wrap;gap:16px;margin-top:20px;padding-top:16px;border-top:1px solid var(--border);font-size:12px;color:var(--muted)">
+      <span>Click any component for details →</span>
+      <span style="color:var(--purple)">— HTTPS / REST</span>
+      <span style="color:var(--blue)">— WebSocket (STOMP/SockJS)</span>
+      <span style="color:var(--orange)">— VCAP_SERVICES binding</span>
+      <span style="color:var(--green)">— Managed service</span>
+    </div>
+  </div>
+</section>
+
+<!-- ─── Build & Deploy ────────────────────────────────────────────── -->
+<section id="build">
+  <h2>Build &amp; Deployment Pipeline</h2>
+  <div class="flow-box">
+
+    <div class="flow-step" onclick="showDetail('step-build-fe')">
+      <div class="step-num tag-blue">1</div>
+      <div class="step-body">
+        <div class="step-title">Build React frontend</div>
+        <div class="step-desc"><code>npm run build</code> inside <code>frontend/</code>. Vite bundles the React app and outputs it directly to <code>backend/src/main/resources/static/</code> — inside the Spring Boot source tree, ready to be packaged into the jar.</div>
+        <div class="tags"><span class="tag tag-blue">Vite 5</span><span class="tag tag-blue">React 18</span><span class="tag tag-blue">Tailwind CSS</span></div>
+      </div>
+    </div>
+    <div class="connector"></div>
+
+    <div class="flow-step" onclick="showDetail('step-build-be')">
+      <div class="step-num tag-green">2</div>
+      <div class="step-body">
+        <div class="step-title">Package Spring Boot jar</div>
+        <div class="step-desc"><code>mvn package</code> inside <code>backend/</code>. Maven packages the Spring Boot app plus the React files from <code>src/main/resources/static/</code> into a single fat jar: <code>backend/target/payflow.jar</code>. Spring Boot's <code>ResourceHttpRequestHandler</code> serves the frontend at <code>/</code>.</div>
+        <div class="tags"><span class="tag tag-green">Maven 3</span><span class="tag tag-green">Spring Boot 3.5</span><span class="tag tag-green">JDK 21</span></div>
+      </div>
+    </div>
+    <div class="connector"></div>
+
+    <div class="flow-step" onclick="showDetail('step-cf-push')">
+      <div class="step-num tag-orange">3</div>
+      <div class="step-body">
+        <div class="step-title">cf push</div>
+        <div class="step-desc">CF CLI reads <code>manifest.yml</code>, uploads the jar, stages it with <code>java_buildpack_offline</code> (installs JDK 21), binds the three service instances, and starts the app. CF assigns a dynamic <code>PORT</code> and registers the route with Gorouter.</div>
+        <div class="tags"><span class="tag tag-orange">java_buildpack</span><span class="tag tag-orange">Diego</span><span class="tag tag-orange">Gorouter</span></div>
+      </div>
+    </div>
+    <div class="connector"></div>
+
+    <div class="flow-step" onclick="showDetail('step-vcap')">
+      <div class="step-num tag-purple">4</div>
+      <div class="step-body">
+        <div class="step-title">java-cfenv-boot wires the services</div>
+        <div class="step-desc">On startup, <code>java-cfenv-boot</code> reads <code>VCAP_SERVICES</code> (injected by CF) and overrides Spring's datasource, RabbitMQ, and Redis connection properties. The app connects to the managed services with zero config changes.</div>
+        <div class="tags"><span class="tag tag-purple">java-cfenv-boot</span><span class="tag tag-purple">VCAP_SERVICES</span><span class="tag tag-purple">Auto-configuration</span></div>
+      </div>
+    </div>
+    <div class="connector"></div>
+
+    <div class="flow-step" onclick="showDetail('step-live')">
+      <div class="step-num tag-green" style="background:#3fb95018;color:var(--green);border:1px solid #3fb95040">✓</div>
+      <div class="step-body">
+        <div class="step-title">App is live</div>
+        <div class="step-desc">Gorouter registers the route. The React SPA is served at <code>/</code>. REST API is at <code>/api/*</code>. WebSocket at <code>/ws</code>. Health check at <code>/actuator/health</code>. All traffic flows through a single CF route — no CORS, no separate frontend app.</div>
+        <div class="tags"><span class="tag tag-green">Single route</span><span class="tag tag-green">No CORS</span><span class="tag tag-green">Health check</span></div>
+      </div>
+    </div>
+
+  </div>
+
+  <div style="margin-top:20px">
+    <div style="font-size:12px;color:var(--muted);margin-bottom:8px">manifest.yml</div>
+    <div class="code-block"><span class="c">---</span>
+<span class="k">applications</span>:
+  - <span class="k">name</span>: <span class="s">payflow-demo</span>
+    <span class="k">buildpacks</span>: [<span class="s">java_buildpack_offline</span>]
+    <span class="k">path</span>: <span class="s">backend/target/payflow.jar</span>
+    <span class="k">memory</span>: <span class="s">1G</span>
+    <span class="k">instances</span>: <span class="s">1</span>
+    <span class="k">health-check-type</span>: <span class="s">http</span>
+    <span class="k">health-check-http-endpoint</span>: <span class="s">/actuator/health</span>
+    <span class="k">env</span>:
+      <span class="k">JBP_CONFIG_OPEN_JDK_JRE</span>: <span class="s">'{ jre: { version: 21.+ } }'</span>
+      <span class="k">JAVA_OPTS</span>: <span class="s">-XX:+UseG1GC -XX:MaxRAMPercentage=65.0</span>
+    <span class="k">services</span>:
+      - <span class="s">payflow-postgres</span>    <span class="c"># → spring.datasource.*</span>
+      - <span class="s">payflow-rabbitmq</span>    <span class="c"># → spring.rabbitmq.*</span>
+      - <span class="s">payflow-redis</span>       <span class="c"># → spring.data.redis.*</span></div>
+  </div>
+</section>
+
+<!-- ─── CF Services ───────────────────────────────────────────────── -->
+<section id="services">
+  <h2>Creating CF Managed Services</h2>
+  <div style="color:var(--muted);font-size:13px;margin-bottom:20px">
+    Run once before <code>cf push</code>. Service names in the commands below match <code>manifest.yml</code> exactly.
+    Find available brokers with <code>cf marketplace</code>.
+  </div>
+  <div class="cmd-grid">
+
+    <div class="cmd-card" onclick="showDetail('svc-postgres')">
+      <div class="cmd-header">
+        <div class="cmd-icon">🐘</div>
+        <div>
+          <div class="cmd-name">PostgreSQL</div>
+          <div class="cmd-plan">payflow-postgres</div>
+        </div>
+      </div>
+      <div class="cmd-block"><span class="cmt"># Tanzu Postgres for VMs (TAS standard)</span>
+<span class="cmd">cf create-service</span> <span class="arg">p.postgres \
+  on-demand-postgres-db \
+  payflow-postgres</span>
+
+<span class="cmt"># Cloud Service Broker — AWS</span>
+<span class="cmt"># cf create-service csb-aws-postgresql \</span>
+<span class="cmt">#   small payflow-postgres</span>
+
+<span class="cmt"># Verify</span>
+<span class="cmd">cf service</span> <span class="arg">payflow-postgres</span></div>
+    </div>
+
+    <div class="cmd-card" onclick="showDetail('svc-rabbitmq')">
+      <div class="cmd-header">
+        <div class="cmd-icon">🐇</div>
+        <div>
+          <div class="cmd-name">RabbitMQ</div>
+          <div class="cmd-plan">payflow-rabbitmq</div>
+        </div>
+      </div>
+      <div class="cmd-block"><span class="cmt"># Tanzu RabbitMQ for VMs (TAS standard)</span>
+<span class="cmd">cf create-service</span> <span class="arg">p.rabbitmq \
+  single-node \
+  payflow-rabbitmq</span>
+
+<span class="cmt"># CloudAMQP (some foundations)</span>
+<span class="cmt"># cf create-service cloudamqp \</span>
+<span class="cmt">#   lemur payflow-rabbitmq</span>
+
+<span class="cmt"># Verify</span>
+<span class="cmd">cf service</span> <span class="arg">payflow-rabbitmq</span></div>
+    </div>
+
+    <div class="cmd-card" onclick="showDetail('svc-redis')">
+      <div class="cmd-header">
+        <div class="cmd-icon">🔴</div>
+        <div>
+          <div class="cmd-name">Redis</div>
+          <div class="cmd-plan">payflow-redis</div>
+        </div>
+      </div>
+      <div class="cmd-block"><span class="cmt"># Tanzu Redis for VMs (TAS standard)</span>
+<span class="cmd">cf create-service</span> <span class="arg">p.redis \
+  cache-small \
+  payflow-redis</span>
+
+<span class="cmt"># Older Pivotal Redis tile</span>
+<span class="cmt"># cf create-service p-redis \</span>
+<span class="cmt">#   shared-vm payflow-redis</span>
+
+<span class="cmt"># Verify</span>
+<span class="cmd">cf service</span> <span class="arg">payflow-redis</span></div>
+    </div>
+
+  </div>
+
+  <div style="background:var(--bg2);border:1px solid #d2992240;border-radius:10px;padding:16px 20px;margin-top:20px;font-size:13px">
+    <div style="color:var(--amber);font-weight:600;margin-bottom:8px">⏱ On-demand services take 2–5 minutes to provision</div>
+    <div style="color:var(--muted)">Watch until all three show <code>create succeeded</code>:</div>
+    <div class="code-block" style="margin-top:8px"><span class="cmd">watch cf services</span>
+<span class="cmt"># or poll manually:</span>
+<span class="cmd">cf services</span></div>
+  </div>
+</section>
+
+<!-- ─── VCAP Binding ──────────────────────────────────────────────── -->
+<section id="vcap">
+  <h2>VCAP_SERVICES Auto-wiring</h2>
+  <div style="color:var(--muted);font-size:13px;margin-bottom:20px">
+    <code>java-cfenv-boot</code> reads CF's <code>VCAP_SERVICES</code> environment variable at Spring context startup and overrides connection properties automatically. No code changes. No secrets in source control.
+  </div>
+
+  <div class="vcap-grid" style="margin-bottom:24px">
+    <div class="vcap-node" onclick="showDetail('vcap-cf')">
+      <div class="vcap-icon">☁️</div>
+      <div class="vcap-title">CF Runtime</div>
+      <div class="vcap-sub">Injects VCAP_SERVICES<br/>as env var on startup</div>
+    </div>
+    <div class="vcap-arrow">→</div>
+    <div class="vcap-node" onclick="showDetail('vcap-cfenv')">
+      <div class="vcap-icon">🔧</div>
+      <div class="vcap-title">java-cfenv-boot</div>
+      <div class="vcap-sub">Parses VCAP_SERVICES<br/>Sets Spring properties</div>
+    </div>
+    <div class="vcap-arrow">→</div>
+    <div class="vcap-node" onclick="showDetail('vcap-spring')">
+      <div class="vcap-icon">🍃</div>
+      <div class="vcap-title">Spring Boot</div>
+      <div class="vcap-sub">Connects to managed<br/>services automatically</div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px">
+    <div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:8px">VCAP_SERVICES structure (abridged)</div>
+      <div class="code-block">{
+  <span class="k">"p.postgres"</span>: [{
+    <span class="k">"credentials"</span>: {
+      <span class="k">"uri"</span>: <span class="s">"postgresql://host/db"</span>,
+      <span class="k">"username"</span>: <span class="s">"..."</span>,
+      <span class="k">"password"</span>: <span class="s">"..."</span>
+    }
+  }],
+  <span class="k">"p.rabbitmq"</span>: [{
+    <span class="k">"credentials"</span>: {
+      <span class="k">"protocols"</span>: {
+        <span class="k">"amqp"</span>: { <span class="k">"host"</span>: <span class="s">"..."</span> }
+      }
+    }
+  }],
+  <span class="k">"p.redis"</span>: [{
+    <span class="k">"credentials"</span>: {
+      <span class="k">"host"</span>: <span class="s">"..."</span>,
+      <span class="k">"password"</span>: <span class="s">"..."</span>
+    }
+  }]
+}</div>
+    </div>
+    <div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Spring properties set by java-cfenv-boot</div>
+      <div class="code-block"><span class="c"># PostgreSQL binding</span>
+<span class="k">spring.datasource.url</span>=<span class="s">jdbc:postgresql://...</span>
+<span class="k">spring.datasource.username</span>=<span class="s">cf-user</span>
+<span class="k">spring.datasource.password</span>=<span class="s">cf-pass</span>
+
+<span class="c"># RabbitMQ binding</span>
+<span class="k">spring.rabbitmq.host</span>=<span class="s">10.x.x.x</span>
+<span class="k">spring.rabbitmq.port</span>=<span class="s">5672</span>
+<span class="k">spring.rabbitmq.username</span>=<span class="s">cf-user</span>
+<span class="k">spring.rabbitmq.virtual-host</span>=<span class="s">/vhost</span>
+
+<span class="c"># Redis binding</span>
+<span class="k">spring.data.redis.host</span>=<span class="s">10.x.x.x</span>
+<span class="k">spring.data.redis.port</span>=<span class="s">6379</span>
+<span class="k">spring.data.redis.password</span>=<span class="s">cf-pass</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── Payment Flow ──────────────────────────────────────────────── -->
+<section id="flow">
+  <h2>Payment Lifecycle on CF</h2>
+  <div class="flow-box">
+
+    <div class="flow-step" onclick="showDetail('pf-submit')">
+      <div class="step-num tag-blue">1</div>
+      <div class="step-body">
+        <div class="step-title">User submits payment</div>
+        <div class="step-desc">Browser calls <code>POST /api/payments</code>. Gorouter forwards to the CF app container. On CF, relative URLs work because the frontend is served from the same app — no CORS, no proxy needed.</div>
+        <div class="tags"><span class="tag tag-blue">Gorouter</span><span class="tag tag-blue">REST</span><span class="tag tag-green">Same-origin</span></div>
+      </div>
+    </div>
+    <div class="connector"></div>
+
+    <div class="flow-step" onclick="showDetail('pf-pending')">
+      <div class="step-num tag-purple">2</div>
+      <div class="step-body">
+        <div class="step-title">Saved PENDING → broadcast via WebSocket</div>
+        <div class="step-desc">Transaction persisted to CF-managed PostgreSQL. WebSocket event sent to <code>/topic/transactions</code>. SockJS connects to <code>window.location.origin + /ws</code> — automatically correct for any CF route.</div>
+        <div class="tags"><span class="tag tag-purple">CF PostgreSQL</span><span class="tag tag-blue">WebSocket</span></div>
+      </div>
+    </div>
+    <div class="connector"></div>
+
+    <div class="flow-step" onclick="showDetail('pf-queue')">
+      <div class="step-num tag-orange">3</div>
+      <div class="step-body">
+        <div class="step-title">Published to CF-managed RabbitMQ</div>
+        <div class="step-desc">PaymentProducer publishes to <code>payflow.exchange</code>. The exchange, queue, and DLQ are declared by Spring's AMQP auto-configuration using the CF binding credentials. All durable — survives app restarts.</div>
+        <div class="tags"><span class="tag tag-orange">CF RabbitMQ</span><span class="tag tag-orange">payment.queue</span><span class="tag tag-orange">DLQ</span></div>
+      </div>
+    </div>
+    <div class="connector"></div>
+
+    <div class="flow-step" onclick="showDetail('pf-fraud')">
+      <div class="step-num tag-red">4</div>
+      <div class="step-body">
+        <div class="step-title">Consumer → Fraud detection (CF Redis)</div>
+        <div class="step-desc">PaymentConsumer picks up the message, runs the fraud rules. Rapid succession rule uses <code>INCR rapid:&lt;accountId&gt;</code> on the CF-managed Redis instance. TTL 60s — no cleanup job, no stale state.</div>
+        <div class="tags"><span class="tag tag-red">CF Redis</span><span class="tag tag-red">INCR + EXPIRE</span></div>
+      </div>
+    </div>
+    <div class="connector"></div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:0 14px">
+      <div class="flow-step" onclick="showDetail('pf-flagged')" style="border:1px dashed #f8514940;border-radius:10px;background:#f8514908">
+        <div class="step-num" style="background:#f8514918;color:var(--red);border:1px solid #f8514940">✗</div>
+        <div class="step-body">
+          <div class="step-title" style="color:var(--red)">FLAGGED</div>
+          <div class="step-desc">FraudAlert saved to CF PostgreSQL. Broadcast on <code>/topic/fraud-alerts</code>. Badge counter increments on all browsers.</div>
+        </div>
+      </div>
+      <div class="flow-step" onclick="showDetail('pf-completed')" style="border:1px dashed #3fb95040;border-radius:10px;background:#3fb95008">
+        <div class="step-num" style="background:#3fb95018;color:var(--green);border:1px solid #3fb95040">✓</div>
+        <div class="step-body">
+          <div class="step-title" style="color:var(--green)">COMPLETED</div>
+          <div class="step-desc">Balances updated in CF PostgreSQL. Broadcast on <code>/topic/transactions</code>. Chart and KPI cards refresh everywhere.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── Components ────────────────────────────────────────────────── -->
+<section id="components">
+  <h2>CF-Specific Code Changes</h2>
+  <div style="color:var(--muted);font-size:13px;margin-bottom:20px">
+    Only four files changed from the Docker version. Everything else is identical.
+  </div>
+  <div class="card-grid">
+
+    <div class="card" onclick="showDetail('change-pom')">
+      <div class="card-header"><div class="card-icon">📦</div><div><div class="card-name">pom.xml</div><div class="card-file">backend/pom.xml</div></div></div>
+      <div class="card-desc">Added <code>java-cfenv-boot 3.1.5</code> dependency. Added <code>&lt;finalName&gt;payflow&lt;/finalName&gt;</code> so the jar has a predictable name for <code>manifest.yml path:</code>. Version changed to <code>1.0.0</code> (no SNAPSHOT).</div>
+      <span class="card-layer tag-orange">CF addition</span>
+    </div>
+
+    <div class="card" onclick="showDetail('change-yml')">
+      <div class="card-header"><div class="card-icon">⚙️</div><div><div class="card-name">application.yml</div><div class="card-file">backend/src/main/resources/application.yml</div></div></div>
+      <div class="card-desc">Changed <code>server.port: 8080</code> to <code>server.port: ${PORT:8080}</code>. CF assigns <code>PORT</code> dynamically; the fallback keeps local dev working unchanged.</div>
+      <span class="card-layer tag-orange">CF change</span>
+    </div>
+
+    <div class="card" onclick="showDetail('change-ws')">
+      <div class="card-header"><div class="card-icon">🔌</div><div><div class="card-name">useWebSocket.js</div><div class="card-file">frontend/src/hooks/useWebSocket.js</div></div></div>
+      <div class="card-desc">Changed <code>new SockJS('http://localhost:8080/ws')</code> to <code>new SockJS(`${window.location.origin}/ws`)</code>. Works on any CF route without rebuilding. In local dev, Vite proxy handles <code>/ws → :8080</code>.</div>
+      <span class="card-layer tag-blue">CF change</span>
+    </div>
+
+    <div class="card" onclick="showDetail('change-vite')">
+      <div class="card-header"><div class="card-icon">⚡</div><div><div class="card-name">vite.config.js</div><div class="card-file">frontend/vite.config.js</div></div></div>
+      <div class="card-desc">Added <code>build.outDir: '../backend/src/main/resources/static'</code>. <code>npm run build</code> now outputs the React app directly into the Spring Boot source tree, so <code>mvn package</code> bundles it into the jar automatically.</div>
+      <span class="card-layer tag-blue">CF change</span>
+    </div>
+
+    <div class="card" onclick="showDetail('change-manifest')">
+      <div class="card-header"><div class="card-icon">📋</div><div><div class="card-name">manifest.yml</div><div class="card-file">manifest.yml (new)</div></div></div>
+      <div class="card-desc">Declares <code>payflow-demo</code> with <code>java_buildpack_offline</code>, JDK 21 config, HTTP health check on <code>/actuator/health</code>, and three service bindings. The single source of truth for CF deployment.</div>
+      <span class="card-layer tag-orange">CF new file</span>
+    </div>
+
+    <div class="card" onclick="showDetail('change-build')">
+      <div class="card-header"><div class="card-icon">🔨</div><div><div class="card-name">build.sh</div><div class="card-file">build.sh (new)</div></div></div>
+      <div class="card-desc">Two-step build script: <code>npm run build</code> (React → static/) then <code>mvn package</code> (Spring Boot jar). Run before every <code>cf push</code>. Produces <code>backend/target/payflow.jar</code>.</div>
+      <span class="card-layer tag-orange">CF new file</span>
+    </div>
+
+  </div>
+</section>
+
+</main>
+
+<script>
+const DETAILS = {
+  browser: {title:'Browser',tag:'React SPA',tagClass:'tag-blue',desc:'Single-page React application. In the CF deployment, the browser connects to the CF-assigned route (e.g. https://payflow-demo.apps.example.com). The frontend and API share the same origin — no CORS headers required. WebSocket connects to window.location.origin + /ws, so it always points to the correct CF route regardless of where the app is pushed.',props:[['SPA','React 18 + Tailwind CSS'],['Charts','Recharts — area, donut, bar'],['WebSocket','STOMP/SockJS → window.location.origin + /ws'],['Theme','Dark/light via localStorage']]},
+  gorouter: {title:'CF Gorouter',tag:'Platform',tagClass:'tag-purple',desc:'The CF routing layer. Terminates TLS, load-balances across app instances, and maps routes to app containers (Diego cells). When cf push completes, the route is automatically registered. When you scale to 2 instances, the Gorouter round-robins traffic across both.',props:[['TLS','Terminated at Gorouter'],['Load balancing','Round-robin across instances'],['Route mapping','Automatic on cf push'],['WebSocket','Upgrade header forwarded to container']]},
+  spring: {title:'payflow-demo (Spring Boot)',tag:'CF App',tagClass:'tag-green',desc:'The entire PayFlow application — REST API, WebSocket broker, RabbitMQ consumer, fraud engine, and React frontend — running as a single CF app on a Diego cell. CF assigns a dynamic PORT; java-cfenv-boot wires all three service connections at startup.',props:[['Buildpack','java_buildpack_offline'],['JDK','21 (JBP_CONFIG_OPEN_JDK_JRE)'],['Memory','1 GB (-XX:MaxRAMPercentage=65.0)'],['Port','${PORT} — CF-assigned, not fixed'],['Health check','HTTP /actuator/health'],['Frontend','Served from classpath:/static/ (embedded in jar)']]},
+  'svc-postgres': {title:'payflow-postgres',tag:'CF Managed Service',tagClass:'tag-orange',desc:'CF managed PostgreSQL instance. Credentials are injected into VCAP_SERVICES and parsed by java-cfenv-boot into spring.datasource.*. Spring Data JPA (Hibernate) creates the schema on startup (create-drop for demo) and seeds 6 UK bank accounts via data.sql.',props:[['Service broker','p.postgres (Tanzu Postgres for VMs)'],['Plan','on-demand-postgres-db'],['Tables','account, transaction, fraud_alert'],['DDL','create-drop (resets on restart)'],['Credentials','Injected via VCAP_SERVICES']]},
+  'svc-rabbitmq': {title:'payflow-rabbitmq',tag:'CF Managed Service',tagClass:'tag-orange',desc:'CF managed RabbitMQ instance. java-cfenv-boot maps the AMQP credentials to spring.rabbitmq.*. Spring AMQP auto-configuration then connects the RabbitTemplate and declares the exchange, payment.queue, and payment.dlq at startup.',props:[['Service broker','p.rabbitmq (Tanzu RabbitMQ for VMs)'],['Plan','single-node'],['Exchange','payflow.exchange'],['Queue','payment.queue'],['DLQ','payment.dlq'],['Credentials','Injected via VCAP_SERVICES']]},
+  'svc-redis': {title:'payflow-redis',tag:'CF Managed Service',tagClass:'tag-orange',desc:'CF managed Redis instance used exclusively for the rapid-succession fraud rule. java-cfenv-boot maps credentials to spring.data.redis.*. The fraud counter key rapid:<accountId> auto-expires after 60 seconds — no cleanup job needed.',props:[['Service broker','p.redis (Tanzu Redis for VMs)'],['Plan','cache-small'],['Key pattern','rapid:<accountId>'],['TTL','60 seconds (EXPIRE)'],['Credentials','Injected via VCAP_SERVICES']]},
+  'step-build-fe': {title:'Step 1 — Build React',tag:'Build',tagClass:'tag-blue',desc:'npm run build runs Vite in production mode. In the CF vite.config.js, build.outDir is set to ../backend/src/main/resources/static. Vite outputs index.html, JS chunks, and CSS directly into Spring Boot\'s static resource directory.',props:[['Command','cd frontend && npm run build'],['Output dir','backend/src/main/resources/static/'],['Bundle','Minified JS/CSS chunks + index.html'],['Source maps','Disabled in production build']]},
+  'step-build-be': {title:'Step 2 — Package Jar',tag:'Build',tagClass:'tag-green',desc:'mvn clean package -DskipTests builds the Spring Boot fat jar. Maven includes everything from src/main/resources/static/ (the freshly built React app) alongside the compiled Java classes. Spring\'s ResourceHttpRequestHandler serves index.html at / and falls through to React Router.',props:[['Command','cd backend && mvn clean package -DskipTests'],['Output','backend/target/payflow.jar (~80 MB)'],['Includes','Java classes + React assets in BOOT-INF/classes/static/'],['finalName','payflow (no SNAPSHOT suffix — matches manifest.yml path)']]},
+  'step-cf-push': {title:'Step 3 — cf push',tag:'Deploy',tagClass:'tag-orange',desc:'CF CLI reads manifest.yml, uploads the jar, runs the java_buildpack staging container, then starts the app container on a Diego cell. CF binds the three service instances before the app starts — VCAP_SERVICES is available from the first line of main().',props:[['Reads','manifest.yml'],['Uploads','backend/target/payflow.jar'],['Buildpack','java_buildpack_offline (no internet required)'],['Service binds','payflow-postgres, payflow-rabbitmq, payflow-redis'],['Route','Automatically assigned based on app name + domain']]},
+  'step-vcap': {title:'Step 4 — VCAP Binding',tag:'Auto-config',tagClass:'tag-purple',desc:'java-cfenv-boot registers a Spring Environment post-processor that runs before any beans are created. It parses VCAP_SERVICES, identifies PostgreSQL / RabbitMQ / Redis service types, and adds the extracted connection properties to the Spring Environment, overriding any values from application.yml.',props:[['Library','io.pivotal.cfenv:java-cfenv-boot:3.1.5'],['Trigger','Spring EnvironmentPostProcessor (before bean creation)'],['Overrides','spring.datasource.*, spring.rabbitmq.*, spring.data.redis.*'],['Local dev','Does nothing when VCAP_SERVICES is absent']]},
+  'step-live': {title:'App is Live',tag:'Running',tagClass:'tag-green',desc:'Gorouter registers the route. The single CF app handles everything: serves the React SPA at /, processes REST API calls at /api/*, accepts WebSocket connections at /ws, and exposes metrics at /actuator/prometheus. No separate frontend process, no CORS configuration.',props:[['Route','https://payflow-demo.apps.<domain>'],['Serves','React SPA at /'],['REST','GET/POST /api/*'],['WebSocket','STOMP/SockJS at /ws'],['Health','GET /actuator/health'],['Metrics','GET /actuator/prometheus']]},
+  'vcap-cf': {title:'CF Runtime — VCAP_SERVICES',tag:'Platform',tagClass:'tag-purple',desc:'Cloud Foundry injects service binding credentials as the VCAP_SERVICES environment variable when starting an app container. It contains a JSON object with one key per service type, each containing an array of service instances with their credentials.',props:[['Variable','VCAP_SERVICES (environment variable)'],['Format','JSON object keyed by service broker label'],['Injected','Before the app process starts'],['View it','cf env payflow-demo']]},
+  'vcap-cfenv': {title:'java-cfenv-boot',tag:'Library',tagClass:'tag-amber',desc:'Open-source library (io.pivotal.cfenv) that implements a Spring EnvironmentPostProcessor. It fires before any beans are created, parses VCAP_SERVICES, and sets Spring properties that Spring Boot\'s auto-configuration picks up to create the DataSource, RabbitConnectionFactory, and RedisConnectionFactory.',props:[['GAV','io.pivotal.cfenv:java-cfenv-boot:3.1.5'],['Hook','Spring EnvironmentPostProcessor'],['PostgreSQL','Maps credentials → spring.datasource.*'],['RabbitMQ','Maps amqp credentials → spring.rabbitmq.*'],['Redis','Maps credentials → spring.data.redis.*']]},
+  'vcap-spring': {title:'Spring Boot Auto-configuration',tag:'Framework',tagClass:'tag-green',desc:'Spring Boot\'s auto-configuration creates the DataSource (HikariCP), RabbitConnectionFactory, and RedisConnectionFactory from whatever spring.datasource.*, spring.rabbitmq.*, and spring.data.redis.* properties are in the environment. Because java-cfenv-boot sets them from VCAP_SERVICES, the app connects to CF services with zero application code changes.',props:[['DataSource','HikariCP pool from spring.datasource.*'],['RabbitMQ','CachingConnectionFactory from spring.rabbitmq.*'],['Redis','LettuceConnectionFactory from spring.data.redis.*'],['No code changes','Same application code runs locally and on CF']]},
+  'pf-submit': {title:'Payment Submission on CF',tag:'REST',tagClass:'tag-blue',desc:'On CF, both the React SPA and the Spring Boot API are served from the same origin (same CF route). The React app calls POST /api/payments as a same-origin relative URL. Gorouter forwards it to the container. No Vite proxy, no CORS headers needed in production.',props:[['URL','POST /api/payments (relative — same origin)'],['Routing','Gorouter → Diego cell → Spring MVC'],['CORS','Not needed — same origin on CF']]},
+  'pf-pending': {title:'Persist PENDING + WebSocket',tag:'JPA + WebSocket',tagClass:'tag-purple',desc:'PaymentService saves the transaction to CF-managed PostgreSQL and broadcasts a TransactionEvent DTO to /topic/transactions. The SockJS client connected to window.location.origin + /ws receives the event immediately.',props:[['DB','CF managed PostgreSQL (VCAP_SERVICES)'],['WebSocket','/topic/transactions broadcast'],['SockJS URL','window.location.origin + /ws (works on any CF route)']]},
+  'pf-queue': {title:'RabbitMQ on CF',tag:'AMQP',tagClass:'tag-orange',desc:'PaymentProducer publishes to the CF-managed RabbitMQ instance. The exchange and queues are declared at startup by Spring AMQP using the VCAP_SERVICES credentials. All messages are durable — they survive app restarts and CF platform events.',props:[['Broker','CF managed p.rabbitmq'],['Exchange','payflow.exchange (declared on startup)'],['Queue','payment.queue (durable)'],['DLQ','payment.dlq (durable, catches failures)']]},
+  'pf-fraud': {title:'Fraud Detection — CF Redis',tag:'Fraud',tagClass:'tag-red',desc:'FraudDetectionService uses the CF-managed Redis instance for the rapid-succession rule. INCR rapid:<accountId> is atomic — safe across multiple CF app instances. Each counter auto-expires after 60 seconds. If you scale to 2 instances, they share the same Redis and the counter is consistent.',props:[['Redis','CF managed p.redis'],['Key','rapid:<accountId>'],['Operation','INCR (atomic, multi-instance safe)'],['TTL','EXPIRE 60s on first INCR']]},
+  'pf-flagged': {title:'FLAGGED outcome',tag:'Fraud',tagClass:'tag-red',desc:'FraudAlert saved to CF PostgreSQL. Two WebSocket broadcasts: /topic/fraud-alerts and /topic/transactions. All connected browsers receive the alert simultaneously via WebSocket.',props:[['DB','FraudAlert → CF PostgreSQL'],['Broadcast','/topic/fraud-alerts + /topic/transactions'],['UI','Badge counter increments, alert card appears']]},
+  'pf-completed': {title:'COMPLETED outcome',tag:'Settlement',tagClass:'tag-green',desc:'Account balances debited/credited in CF PostgreSQL. Transaction marked COMPLETED. WebSocket broadcast to /topic/transactions and /topic/stats. Chart ticks, KPI cards refresh everywhere.',props:[['DB','Balances + Transaction → CF PostgreSQL'],['Broadcast','/topic/transactions + /topic/stats'],['UI','Chart tick, KPI refresh, balance update']]},
+  'change-pom': {title:'pom.xml — CF changes',tag:'Backend',tagClass:'tag-orange',desc:'Three changes from the Docker version: (1) java-cfenv-boot dependency added — auto-wires VCAP_SERVICES; (2) finalName set to "payflow" so the jar name matches manifest.yml path exactly; (3) version set to 1.0.0 (no SNAPSHOT).',props:[['Added dep','io.pivotal.cfenv:java-cfenv-boot:3.1.5'],['finalName','payflow (→ payflow.jar, matches manifest.yml)'],['Version','1.0.0 (was 1.0.0-SNAPSHOT)']]},
+  'change-yml': {title:'application.yml — CF changes',tag:'Config',tagClass:'tag-orange',desc:'Single line change: server.port changed from hardcoded 8080 to ${PORT:8080}. CF sets the PORT environment variable to the container\'s assigned port. The :8080 fallback means local development works identically without setting PORT.',props:[['Changed','server.port: 8080 → server.port: ${PORT:8080}'],['Why','CF assigns PORT dynamically — hardcoded 8080 won\'t bind'],['Local dev','PORT not set → falls back to 8080 (unchanged behaviour)']]},
+  'change-ws': {title:'useWebSocket.js — CF changes',tag:'Frontend',tagClass:'tag-blue',desc:'The SockJS URL was hardcoded to http://localhost:8080/ws. Changed to window.location.origin + /ws. In production on CF, this resolves to the CF route. In local dev, window.location.origin is http://localhost:5173 and the Vite proxy forwards /ws to :8080.',props:[['Was','new SockJS(\'http://localhost:8080/ws\')'],['Now','new SockJS(`${window.location.origin}/ws`)'],['CF','Resolves to https://payflow-demo.apps.<domain>/ws'],['Local dev','http://localhost:5173/ws → Vite proxy → :8080']]},
+  'change-vite': {title:'vite.config.js — CF changes',tag:'Frontend',tagClass:'tag-blue',desc:'Added build.outDir pointing to ../backend/src/main/resources/static with emptyOutDir: true. When npm run build runs, Vite outputs the production bundle directly into Spring Boot\'s static resource directory. mvn package then includes it in the jar automatically.',props:[['Added','build: { outDir: \'../backend/src/main/resources/static\', emptyOutDir: true }'],['Effect','npm run build → Spring Boot static dir → included in jar'],['Dev server','Proxy config unchanged — still works for local dev']]},
+  'change-manifest': {title:'manifest.yml — new file',tag:'CF',tagClass:'tag-orange',desc:'Declares the CF app: buildpack (java_buildpack_offline), jar path, memory (1G), health check endpoint, JDK 21 config via JBP_CONFIG_OPEN_JDK_JRE, GC tuning via JAVA_OPTS, and the three service bindings. CF binds the services before the app starts.',props:[['Buildpack','java_buildpack_offline'],['Path','backend/target/payflow.jar'],['Memory','1G (-XX:MaxRAMPercentage=65.0 → ~650 MB heap)'],['Health check','HTTP /actuator/health'],['Services','payflow-postgres, payflow-rabbitmq, payflow-redis']]},
+  'change-build': {title:'build.sh — new file',tag:'Build',tagClass:'tag-orange',desc:'Two-step build script. Step 1: npm install + npm run build in frontend/ (outputs to backend/src/main/resources/static/ via vite.config.js). Step 2: mvn clean package in backend/ (produces payflow.jar with embedded frontend). Run before every cf push.',props:[['Step 1','cd frontend && npm install && npm run build'],['Step 2','cd backend && mvn clean package -DskipTests'],['Output','backend/target/payflow.jar'],['Run','./build.sh then cf push']]},
+}
+
+function showDetail(key) {
+  const d = DETAILS[key]; if (!d) return
+  const content = document.getElementById('dp-content')
+  content.innerHTML = `
+    <span class="dp-tag ${d.tagClass}">${d.tag}</span>
+    <h3>${d.title}</h3>
+    <p class="dp-desc">${d.desc}</p>
+    ${d.props ? `<ul class="dp-props">${d.props.map(([k,v]) => `<li><span class="pk">${k}</span><span class="pv">${v}</span></li>`).join('')}</ul>` : ''}
+  `
+  document.getElementById('dp').classList.add('open')
+}
+function closePanel() { document.getElementById('dp').classList.remove('open') }
+function setActive(el) {
+  document.querySelectorAll('nav a').forEach(a => a.classList.remove('active'))
+  el.classList.add('active')
+}
+const sections = ['overview','build','services','vcap','flow','components']
+window.addEventListener('scroll', () => {
+  const pos = window.scrollY + 120
+  for (let i = sections.length - 1; i >= 0; i--) {
+    const el = document.getElementById(sections[i])
+    if (el && el.offsetTop <= pos) {
+      document.querySelectorAll('nav a').forEach(a => a.classList.remove('active'))
+      const link = document.querySelector(`nav a[href="#${sections[i]}"]`)
+      if (link) link.classList.add('active')
+      break
+    }
+  }
+})
+</script>
+</body>
+</html>

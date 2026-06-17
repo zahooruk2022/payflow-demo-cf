@@ -1,0 +1,39 @@
+---
+# PayFlow — Cloud Foundry deployment manifest
+#
+# Before running cf push:
+#   1. Create the three services (see README.md for exact commands)
+#   2. Run ./build.sh to produce backend/target/payflow.jar
+#   3. cf push
+#
+# Service names below must match what you created with cf create-service.
+
+applications:
+  - name: payflow-demo
+    buildpacks:
+      - java_buildpack_offline
+    path: backend/target/payflow.jar
+    instances: 1
+    memory: 1G
+    disk_quota: 512M
+
+    # CF health check — Actuator /health must return 200
+    health-check-type: http
+    health-check-http-endpoint: /actuator/health
+
+    env:
+      # Tell the Java buildpack to use JDK 21
+      JBP_CONFIG_OPEN_JDK_JRE: '{ jre: { version: 21.+ } }'
+      # GC tuning — lets Spring Boot use up to 65% of the container memory limit
+      JAVA_OPTS: >-
+        -XX:+UseG1GC
+        -XX:MaxRAMPercentage=65.0
+        -Djava.security.egd=file:/dev/./urandom
+
+    # CF managed service instances to bind on push.
+    # java-cfenv-boot reads VCAP_SERVICES and auto-configures
+    # the datasource, RabbitMQ connection factory, and Redis connection factory.
+    services:
+      - payflow-postgres    # PostgreSQL — bound as spring.datasource.*
+      - payflow-rabbitmq    # RabbitMQ   — bound as spring.rabbitmq.*
+      - payflow-redis       # Redis      — bound as spring.data.redis.*
