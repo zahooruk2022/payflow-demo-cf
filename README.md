@@ -386,7 +386,7 @@ cf services
 
 ### 3. Submit a clean payment (2 min)
 
-**Send Payment** → Barclays → HSBC → £15,000 → **Send Payment**
+**Send Payment** → Vantage Bank → Meridian Bank → £15,000 → **Send Payment**
 
 Switch to **Dashboard**.
 
