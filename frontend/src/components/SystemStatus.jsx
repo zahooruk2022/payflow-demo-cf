@@ -86,7 +86,7 @@ export default function SystemStatus() {
 
       <div className="mt-4 pt-3 border-t border-slate-100 dark:border-white/[0.04]">
         <a
-          href="https://rmq-4bf2a6d7-619b-4011-bcdc-44ede175fd93.sys.tpcf.tnz-field-epc.lvn.broadcom.net"
+          href="#"
           target="_blank"
           rel="noreferrer"
           className="text-blue-500 hover:text-blue-400 text-[10px] font-medium flex items-center gap-1"
